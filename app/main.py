@@ -1,33 +1,66 @@
-from app.llm import MODEL, generate_response # type: ignore
+
+import argparse
+
+from app.llm import generate_response
 
 
 def main():
 
-    conversation = []
+    parser = argparse.ArgumentParser(
+        description="Chatbot de Biaani"
+    )
 
-    print(f"Biaani Chatbot. Usando el modelo {MODEL}.\n")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="qwen3.5:2b-q4_K_M",
+        help="Modelo de Ollama que utilizará el chatbot"
+    )
+
+    args = parser.parse_args()
+
+    model = args.model
+    messages = []
+
+    print("=" * 45)
+    print("       CHATBOT BIAANI")
+    print("=" * 45)
+    print(f"Modelo utilizado: {model}")
     print("Escribe 'salir' para terminar.\n")
 
     while True:
 
-        user_message = input("Tú: ")
+        try:
+            user_input = input("Tú: ").strip()
 
-        if user_message.lower() == "salir":
+            if user_input.lower() == "salir":
+                break
+
+            if not user_input:
+                continue
+
+            messages.append({
+                "role": "user",
+                "content": user_input
+            })
+
+            answer = generate_response(messages, model)
+
+            messages.append({
+                "role": "assistant",
+                "content": answer
+            })
+
+            print(f"\nBiaani: {answer}\n")
+
+        except KeyboardInterrupt:
+            print("\n\nChat interrumpido.")
             break
 
-        conversation.append({ # type: ignore
-            "role": "user",
-            "content": user_message
-        })
-
-        answer = generate_response(conversation)
-
-        conversation.append({ # type: ignore
-            "role": "assistant",
-            "content": answer
-        })
-
-        print(f"\nBiaani: {answer}\n")
+    print("\n" + "=" * 45)
+    print(f"Modelo utilizado: {model}")
+    print("Chatbot finalizado.")
+    print("=" * 45)
 
 
 if __name__ == "__main__":

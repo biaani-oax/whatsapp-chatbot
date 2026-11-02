@@ -1,7 +1,5 @@
 import ollama
 
-MODEL = "qwen3.5:9b-q4_K_M"
-
 SYSTEM_PROMPT = """
 Eres el asistente virtual de Biaani, un centro STEM Maker.
 
@@ -14,18 +12,19 @@ Si no tienes información suficiente para responder,
 indica que no cuentas con ese dato. No inventes información.
 """
 
-
-def generate_response(messages: list) -> str:
-
+def generate_response(messages: list, model: str) -> str:
     response = ollama.chat(
-        model=MODEL,
+        model=model,
         messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
+            {"role": "system", "content": SYSTEM_PROMPT},
             *messages
-        ]
+        ],
+        think=False,
+        options={
+            "temperature": 0.2,
+            "num_ctx": 4096,
+            "num_predict": 200
+        }
     )
 
     return response["message"]["content"]
