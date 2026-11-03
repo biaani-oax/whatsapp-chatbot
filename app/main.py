@@ -13,7 +13,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="qwen3.5:2b-q4_K_M",
+        default="qwen2.5:3b",
         help="Modelo de Ollama que utilizará el chatbot"
     )
 
