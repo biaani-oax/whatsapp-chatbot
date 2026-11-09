@@ -7,7 +7,7 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters,
 )
 
-from app.llm import generate_response
+from app.llm import generate_response, OLLAMA_MODEL
 
 load_dotenv()
 

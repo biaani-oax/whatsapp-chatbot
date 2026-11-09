@@ -1,7 +1,7 @@
 
 import argparse
 
-from app.llm import generate_response
+from app.llm import generate_response, OLLAMA_MODEL
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="qwen2.5:3b",
+        default=OLLAMA_MODEL,
         help="Modelo de Ollama que utilizará el chatbot"
     )
 
