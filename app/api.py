@@ -10,7 +10,13 @@ from fastapi.responses import PlainTextResponse
 load_dotenv()  # primero se lee el .env, y solo después las variables
 
 from app.telegram_bot import construir_app
-from app.llm import generate_response
+#from app.llm import generate_response
+
+from app.database.connection import connect_db, close_db
+from app.database.initialize import initialize_database
+from app.services.company_cache import load_company_cache
+
+from app.conversation import process_incoming_message
 # ==========================================
 # CONFIGURACIÓN
 # ==========================================
@@ -27,21 +33,39 @@ VISTOS = set()  # ids de mensajes ya atendidos (suficiente para la demo)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    tg = construir_app()
-
-    await tg.initialize()
-    await tg.start()
-    await tg.updater.start_polling()
-
-    app.state.telegram_app = tg
+    # 1. Conectar PostgreSQL
+    await connect_db()
 
     try:
-        yield
+        # 2. Inicializar tablas y datos
+        await initialize_database()
+
+        # 3. Cargar información de Biaani en RAM
+        await load_company_cache()
+
+        # 4. Iniciar Telegram
+        tg = construir_app()
+
+        await tg.initialize()
+        await tg.start()
+        await tg.updater.start_polling()
+
+        app.state.telegram_app = tg
+
+        print("Telegram iniciado correctamente.")
+        print("Servidor Biaani listo.")
+
+        try:
+            yield
+
+        finally:
+            await tg.updater.stop()
+            await tg.stop()
+            await tg.shutdown()
 
     finally:
-        await tg.updater.stop()
-        await tg.stop()
-        await tg.shutdown()
+        # 5. Cerrar PostgreSQL
+        await close_db()
 # ==========================================
 # APLICACIÓN FASTAPI
 # ==========================================
@@ -82,23 +106,57 @@ async def enviar_whatsapp(destino: str, texto: str):
 # PROCESAMIENTO DE MENSAJES
 # ==========================================
 async def procesar(data: dict):
+
     for entry in data.get("entry", []):
+
         for change in entry.get("changes", []):
+
             value = change.get("value", {})
+
+            # Obtener nombres de los contactos
+            contactos = {
+                contacto.get("wa_id"): contacto.get(
+                    "profile", {}
+                ).get("name")
+                for contacto in value.get("contacts", [])
+            }
+
             for msg in value.get("messages", []):
-                if msg.get("type") != "text" or msg["id"] in VISTOS:
+
+                if msg.get("type") != "text":
                     continue
-                VISTOS.add(msg["id"])
+
+                numero = msg.get("from")
+                texto = msg.get("text", {}).get("body", "")
+                message_id = msg.get("id")
+
+                if not numero or not texto or not message_id:
+                    continue
+
                 try:
-                    respuesta = await asyncio.to_thread(
-                        generate_response,
-                        [{"role": "user", "content": msg["text"]["body"]}],
+
+                    respuesta = await process_incoming_message(
+                        platform="whatsapp",
+                        platform_user_id=numero,
+                        display_name=contactos.get(numero),
+                        text=texto,
+                        platform_message_id=message_id
                     )
-                    respuesta = respuesta.strip()
+
+                    # Si el mensaje ya fue procesado, no responder otra vez
+                    if respuesta is None:
+                        continue
+
+                    await enviar_whatsapp(numero, respuesta.strip())
+
                 except Exception as e:
-                    print("Error con el LLM:", e)
-                    respuesta = "Tuve un problema al generar la respuesta. Intenta de nuevo."
-                await enviar_whatsapp(msg["from"], respuesta)
+
+                    print("Error procesando mensaje de WhatsApp:", e)
+
+                    await enviar_whatsapp(
+                        numero,
+                        "Tuve un problema al procesar tu mensaje. Intenta de nuevo."
+                    )
 
 # ==========================================
 # VERIFICACIÓN DEL WEBHOOK DE META

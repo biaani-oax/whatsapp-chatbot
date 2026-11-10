@@ -43,3 +43,11 @@ CREATE TABLE IF NOT EXISTS company_knowledge (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Identificador del mensaje original de WhatsApp o Telegram
+ALTER TABLE messages
+ADD COLUMN IF NOT EXISTS platform_message_id VARCHAR(200);
+
+-- Evita guardar dos veces el mismo mensaje de una plataforma
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_platform_message_id
+ON messages (platform_message_id)
+WHERE platform_message_id IS NOT NULL;
